@@ -65,7 +65,6 @@ class DefaultFirebaseOptions {
     projectId: dotenv.env['FIREBASE_PROJECT_ID']!,
     storageBucket: dotenv.env['FIREBASE_STORAGE_BUCKET']!,
     iosClientId: dotenv.env['IOS_CLIENT_ID']!,
-    iosBundleId: dotenv.env['BUNDLE_ID']!,
+    iosBundleId: dotenv.env['APP_BUNDLE_ID']!,
   );
-
 }

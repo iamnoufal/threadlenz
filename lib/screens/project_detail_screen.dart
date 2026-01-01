@@ -56,12 +56,41 @@ class ProjectDetailScreen extends StatelessWidget {
               ),
               constraints: const BoxConstraints(maxHeight: 200),
               child: SingleChildScrollView(
-                child: Text(
-                  project.prompts.isNotEmpty
-                      ? project.prompts.first
-                      : 'No prompt info',
-                  style: const TextStyle(fontSize: 16, height: 1.5),
-                ),
+                child: project.prompts.isNotEmpty
+                    ? ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: project.prompts.length,
+                        separatorBuilder: (context, index) =>
+                            const Divider(height: 24),
+                        itemBuilder: (context, index) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Prompt ${index + 1}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                project.prompts[index],
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      )
+                    : const Text(
+                        'No prompt info',
+                        style: TextStyle(fontSize: 16, height: 1.5),
+                      ),
               ),
             ),
             const SizedBox(height: 32),
