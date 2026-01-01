@@ -2,6 +2,8 @@ name: Release
 
 on:
   push:
+    branches:
+      - 'master'
     tags:
       - 'v*'
 
@@ -25,6 +27,9 @@ jobs:
       - name: Test
         run: |
           cat test.json
+          cat .env
+          cat android/app/google-services.json
+          cat ios/Runner/GoogleService-Info.plist
 
       - uses: actions/setup-java@v3
         with:
