@@ -27,6 +27,7 @@ class ResultScreen extends StatefulWidget {
 class _ResultScreenState extends State<ResultScreen> {
   bool _isLoading = true;
   String _loadingMessage = 'Initializing...';
+  String? _errorMessage;
   List<Uint8List> _generatedImages = [];
 
   @override
@@ -35,8 +36,6 @@ class _ResultScreenState extends State<ResultScreen> {
     // If we have prompts, it means we are viewing history or pre-calculated data
     if (widget.generatedPrompts.isNotEmpty && widget.originalImages.isEmpty) {
       // TODO: Handle viewing history (images would need to be loaded from paths)
-      // For now, if we have prompts but no images (or images are passed differently logic might differ)
-      // But per new flow, we enter with images and NO prompts.
       _isLoading = false;
     } else {
       _startFullWorkflow();
@@ -51,15 +50,14 @@ class _ResultScreenState extends State<ResultScreen> {
       // STEP 1: ANALYSIS
       if (mounted) setState(() => _loadingMessage = 'Analyzing your images...');
 
-      // We use the first image for analysis, or could combine.
-      // Assuming we need to analyze to get prompts
       final prompts = await aiService.generatePrompts(
         widget.originalImages.first,
       );
 
       // STEP 2: GENERATION
-      if (mounted)
+      if (mounted) {
         setState(() => _loadingMessage = 'Generating your images...');
+      }
 
       final service = ImageGenerationService();
       List<Uint8List> images = await service.generateEditedImages(
@@ -70,28 +68,40 @@ class _ResultScreenState extends State<ResultScreen> {
       // STEP 3: SAVE TO HISTORY
       if (mounted) setState(() => _loadingMessage = 'Saving to history...');
 
-      // Convert XFiles to Files for storage - NO, pass XFiles directly now
-      // List<File> inputFiles = widget.originalImages
-      //    .map((x) => File(x.path))
-      //    .toList();
-
-      await StorageService().saveProject(
-        prompts: prompts,
-        inputImages: widget.originalImages, // Pass XFiles directly
-        generatedImageBytes: images,
-      );
+      try {
+        await StorageService().saveProject(
+          prompts: prompts,
+          inputImages: widget.originalImages,
+          generatedImageBytes: images,
+        );
+      } catch (e) {
+        debugPrint("Failed to save to history: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Note: Could not save to history (Storage might be full)',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
 
       if (mounted) {
         setState(() {
           _generatedImages = images;
           _isLoading = false;
+          _errorMessage = null;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
+          _errorMessage = e.toString();
         });
+        // Also show snackbar for good measure
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Workflow Failed: $e')));
@@ -103,46 +113,98 @@ class _ResultScreenState extends State<ResultScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Your Masterpieces')),
-      body: _isLoading
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const CircularProgressIndicator(
-                    color: AppTheme.emeraldPrimary,
-                  ),
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 16),
-                  Text(
-                    _loadingMessage,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'This may take a few moments',
-                    style: TextStyle(
-                      color: AppTheme.emeraldPrimary.withOpacity(0.6),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : GridView.builder(
-              padding: const EdgeInsets.all(16),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 0.8,
-              ),
-              itemCount: _generatedImages.length,
-              itemBuilder: (context, index) {
-                return _buildResultCard(index);
-              },
+      body: _buildBody(),
+    );
+  }
+
+  Widget _buildBody() {
+    if (_isLoading) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const CircularProgressIndicator(color: AppTheme.emeraldPrimary),
+            const SizedBox(height: 16),
+            Text(
+              _loadingMessage,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'This may take a few moments',
+              style: TextStyle(color: AppTheme.emeraldPrimary.withOpacity(0.6)),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_errorMessage != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(
+                'Something went wrong',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage!,
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[700]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _errorMessage = null;
+                  });
+                  _startFullWorkflow();
+                },
+                child: const Text('Try Again'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_generatedImages.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+            const SizedBox(height: 16),
+            const Text('No images generated.'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Go Back'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      padding: const EdgeInsets.all(16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: _generatedImages.length,
+      itemBuilder: (context, index) {
+        return _buildResultCard(index);
+      },
     );
   }
 

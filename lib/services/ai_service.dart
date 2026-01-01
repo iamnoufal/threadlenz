@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:image_picker/image_picker.dart';
 
@@ -38,18 +39,12 @@ class AiService {
       final response = await _model.generateContent(content);
       print("Gemini Response: ${response.text}"); // Verification log
 
-      // Basic parsing - relying on JSON mode
-
-      if (response.text == null) throw Exception("Empty response");
-
-      // Parse the JSON string manually or via a package to extract the list
-      // For this plan, I'll return dummy data if actual parsing fails to keep the UI flowing
-      return [
-        "Product on a polished marble table with soft sunlight",
-        "Product on a beige linen fabric background, minimalist style",
-        "Product on a wooden geometric podium, nature inspired",
-        "Product isolated on a pure white background with soft natural shadow",
-      ];
+      final jsonResponse = jsonDecode(response.text!) as Map<String, dynamic>;
+      if (jsonResponse.containsKey('prompts')) {
+        return List<String>.from(jsonResponse['prompts'] as List);
+      } else {
+        throw Exception("Invalid JSON structure: missing 'prompts' key");
+      }
     } catch (e) {
       print("AI Service Error: $e");
       final err = e.toString();

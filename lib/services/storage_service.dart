@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'package:universal_io/io.dart';
-import 'dart:typed_data';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart'; // for kIsWeb
@@ -69,7 +68,7 @@ class StorageService {
     final List<String> projectsJson = prefs.getStringList(_projectsKey) ?? [];
 
     // Limit storage on web to avoid quota issues
-    int maxItems = kIsWeb ? 5 : 20;
+    int maxItems = kIsWeb ? 1 : 20;
 
     projectsJson.insert(0, jsonEncode(project.toJson()));
     if (projectsJson.length > maxItems) {

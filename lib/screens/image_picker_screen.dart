@@ -100,8 +100,9 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
                               .whereType<XFile>()
                               .toList();
 
-                          if (selectedImages.isEmpty)
+                          if (selectedImages.isEmpty) {
                             return; // Should likely be covered by _canProceed
+                          }
 
                           // Initialize Logic
                           // Navigate IMMEDIATELY to ResultScreen with the images.
