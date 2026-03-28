@@ -27,12 +27,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ThreadLenz'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () {},
-          ),
-        ],
+        actions: const [],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -108,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   contentPadding: const EdgeInsets.all(8),
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: project.generatedImagePaths.isNotEmpty
+                    child: _hasGeneratedImages(project)
                         ? SizedBox(
                             width: 60,
                             height: 60,
@@ -125,12 +120,12 @@ class _HomeScreenState extends State<HomeScreen> {
                     project.prompts.isNotEmpty
                         ? project.prompts.first
                         : 'Untitled',
-                    maxLines: 1,
+                    maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textDark),
                   ),
                   subtitle: Text(
-                    '${project.generatedImagePaths.length} Variations',
+                    '${_getVariationCount(project)} Variations',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -273,6 +268,21 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
       ),
     );
+  }
+
+  bool _hasGeneratedImages(ProjectModel project) {
+    if (kIsWeb) {
+      return project.generatedImageBase64s != null &&
+          project.generatedImageBase64s!.isNotEmpty;
+    }
+    return project.generatedImagePaths.isNotEmpty;
+  }
+
+  int _getVariationCount(ProjectModel project) {
+    if (kIsWeb) {
+      return project.generatedImageBase64s?.length ?? 0;
+    }
+    return project.generatedImagePaths.length;
   }
 
   Widget _buildProjectThumb(ProjectModel project) {

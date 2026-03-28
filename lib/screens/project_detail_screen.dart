@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:universal_io/io.dart' show File;
 
 import '../models/project_model.dart';
+import '../services/storage_service.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
 class ProjectDetailScreen extends StatelessWidget {
@@ -11,10 +12,50 @@ class ProjectDetailScreen extends StatelessWidget {
 
   const ProjectDetailScreen({super.key, required this.project});
 
+  Future<void> _deleteProject(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Project'),
+        content: const Text('This will permanently delete this project and all its images. Are you sure?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await StorageService().deleteProject(project.id);
+      if (context.mounted) {
+        Navigator.pop(context, true); // return true to signal deletion
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Project deleted')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Project Details')),
+      appBar: AppBar(
+        title: const Text('Project Details'),
+        actions: [
+          IconButton(
+            onPressed: () => _deleteProject(context),
+            icon: const Icon(Icons.delete_outline, color: Colors.red),
+            tooltip: 'Delete project',
+          ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -54,44 +95,19 @@ class ProjectDetailScreen extends StatelessWidget {
                 color: Colors.grey[100],
                 borderRadius: BorderRadius.circular(12),
               ),
-              constraints: const BoxConstraints(maxHeight: 200),
-              child: SingleChildScrollView(
-                child: project.prompts.isNotEmpty
-                    ? ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: project.prompts.length,
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 24),
-                        itemBuilder: (context, index) {
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Prompt ${index + 1}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                project.prompts[index],
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  height: 1.5,
-                                ),
-                              ),
-                            ],
-                          );
-                        },
-                      )
-                    : const Text(
-                        'No prompt info',
-                        style: TextStyle(fontSize: 16, height: 1.5),
+              child: project.prompts.isNotEmpty
+                  ? SelectableText(
+                      project.prompts.join('\n\n'),
+                      style: const TextStyle(
+                        fontSize: 15,
+                        height: 1.5,
+                        color: Colors.black87,
                       ),
-              ),
+                    )
+                  : const Text(
+                      'No prompt info',
+                      style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black54),
+                    ),
             ),
             const SizedBox(height: 32),
 

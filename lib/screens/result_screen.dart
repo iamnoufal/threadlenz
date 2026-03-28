@@ -12,7 +12,7 @@ import '../widgets/full_screen_image_viewer.dart';
 
 class ResultScreen extends StatefulWidget {
   final List<String> generatedPrompts;
-  final List<XFile> originalImages; // Changed to List
+  final List<XFile> originalImages;
 
   const ResultScreen({
     super.key,
@@ -26,23 +26,39 @@ class ResultScreen extends StatefulWidget {
 
 class _ResultScreenState extends State<ResultScreen> {
   bool _isLoading = true;
+  bool _isGeneratingMore = false;
   String _loadingMessage = 'Initializing...';
   String? _errorMessage;
   List<Uint8List> _generatedImages = [];
+  String _basePrompt = '';
+  late ImageGenerationService _imageService;
+  final TextEditingController _feedbackController = TextEditingController();
+  String _accumulatedFeedback = '';
+  final List<String> _usedStyles = [];
+  String? _projectId;
+
+  int get _generationCount => _generatedImages.length;
+  bool get _canGenerateMore =>
+      _generationCount < ImageGenerationService.maxGenerations;
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
     super.initState();
-    // If we have prompts, it means we are viewing history or pre-calculated data
+    _imageService = ImageGenerationService();
     if (widget.generatedPrompts.isNotEmpty && widget.originalImages.isEmpty) {
-      // TODO: Handle viewing history (images would need to be loaded from paths)
       _isLoading = false;
     } else {
-      _startFullWorkflow();
+      _startInitialWorkflow();
     }
   }
 
-  Future<void> _startFullWorkflow() async {
+  Future<void> _startInitialWorkflow() async {
     try {
       final aiService = AiService();
       aiService.initialize();
@@ -50,30 +66,35 @@ class _ResultScreenState extends State<ResultScreen> {
       // STEP 1: ANALYSIS
       if (mounted) setState(() => _loadingMessage = 'Analyzing your images...');
 
-      final prompts = await aiService.generatePrompts(
+      _basePrompt = await aiService.generatePrompt(
         widget.originalImages.first,
       );
 
-      // STEP 2: GENERATION
+      // STEP 2: GENERATE FIRST IMAGE
       if (mounted) {
-        setState(() => _loadingMessage = 'Generating your images...');
+        setState(() => _loadingMessage = 'Generating your image...');
       }
 
-      final service = ImageGenerationService();
-      List<Uint8List> images = await service.generateEditedImages(
-        prompts,
-        widget.originalImages,
+      final image = await _imageService.generateSingleImage(
+        prompt: _basePrompt,
+        originalImages: widget.originalImages,
+        variationIndex: 0,
+        previousStyles: [],
       );
+
+      _generatedImages.add(image);
+      _usedStyles.add(ImageGenerationService.getDiversityLabel(0));
 
       // STEP 3: SAVE TO HISTORY
       if (mounted) setState(() => _loadingMessage = 'Saving to history...');
 
       try {
-        await StorageService().saveProject(
-          prompts: prompts,
+        final project = await StorageService().saveProject(
+          prompts: [_basePrompt],
           inputImages: widget.originalImages,
-          generatedImageBytes: images,
+          generatedImageBytes: _generatedImages,
         );
+        _projectId = project.id;
       } catch (e) {
         debugPrint("Failed to save to history: $e");
         if (mounted) {
@@ -90,7 +111,6 @@ class _ResultScreenState extends State<ResultScreen> {
 
       if (mounted) {
         setState(() {
-          _generatedImages = images;
           _isLoading = false;
           _errorMessage = null;
         });
@@ -101,10 +121,69 @@ class _ResultScreenState extends State<ResultScreen> {
           _isLoading = false;
           _errorMessage = e.toString();
         });
-        // Also show snackbar for good measure
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Workflow Failed: $e')));
+      }
+    }
+  }
+
+  Future<void> _generateMore() async {
+    if (!_canGenerateMore || _isGeneratingMore) return;
+
+    // Capture and accumulate feedback before generation
+    final currentFeedback = _feedbackController.text.trim();
+    if (currentFeedback.isNotEmpty) {
+      _accumulatedFeedback = _accumulatedFeedback.isEmpty
+          ? currentFeedback
+          : '$_accumulatedFeedback. $currentFeedback';
+      _feedbackController.clear();
+    }
+
+    setState(() => _isGeneratingMore = true);
+
+    try {
+      final nextIndex = _generationCount;
+      var prompt = _basePrompt;
+
+      // Append accumulated feedback to the prompt
+      if (_accumulatedFeedback.isNotEmpty) {
+        prompt = '$prompt. User feedback to incorporate: $_accumulatedFeedback';
+      }
+
+      final image = await _imageService.generateSingleImage(
+        prompt: prompt,
+        originalImages: widget.originalImages,
+        variationIndex: nextIndex,
+        previousStyles: _usedStyles,
+      );
+
+      _usedStyles.add(ImageGenerationService.getDiversityLabel(nextIndex));
+
+      if (mounted) {
+        setState(() {
+          _generatedImages.add(image);
+          _isGeneratingMore = false;
+        });
+
+        // Add new image to existing project
+        if (_projectId != null) {
+          try {
+            await StorageService().addGeneratedImage(
+              projectId: _projectId!,
+              imageBytes: image,
+            );
+          } catch (e) {
+            debugPrint("Failed to update history: $e");
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isGeneratingMore = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Generation failed: $e')));
       }
     }
   }
@@ -165,7 +244,7 @@ class _ResultScreenState extends State<ResultScreen> {
                     _isLoading = true;
                     _errorMessage = null;
                   });
-                  _startFullWorkflow();
+                  _startInitialWorkflow();
                 },
                 child: const Text('Try Again'),
               ),
@@ -193,18 +272,93 @@ class _ResultScreenState extends State<ResultScreen> {
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(16),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 16,
-        mainAxisSpacing: 16,
-        childAspectRatio: 0.8,
-      ),
-      itemCount: _generatedImages.length,
-      itemBuilder: (context, index) {
-        return _buildResultCard(index);
-      },
+    return Column(
+      children: [
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(16),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: _generatedImages.length,
+            itemBuilder: (context, index) {
+              return _buildResultCard(index);
+            },
+          ),
+        ),
+        if (_canGenerateMore) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+            child: TextField(
+              controller: _feedbackController,
+              decoration: InputDecoration(
+                hintText: 'e.g. "Make the background brighter" or "Less shadow"',
+                labelText: 'Feedback for next generation (optional)',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppTheme.emeraldPrimary),
+                ),
+                prefixIcon: const Icon(Icons.feedback_outlined),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+              maxLines: 2,
+              minLines: 1,
+              textInputAction: TextInputAction.done,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+            child: SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _isGeneratingMore ? null : _generateMore,
+                icon: _isGeneratingMore
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome),
+                label: Text(
+                  _isGeneratingMore
+                      ? 'Generating...'
+                      : 'Generate More ($_generationCount/${ImageGenerationService.maxGenerations})',
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.emeraldPrimary,
+                ),
+              ),
+            ),
+          ),
+        ],
+        Padding(
+          padding: EdgeInsets.fromLTRB(24, 0, 24, _canGenerateMore ? 12 : 24),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isGeneratingMore ? null : () => Navigator.of(context).popUntil((route) => route.isFirst),
+              icon: const Icon(Icons.home_outlined),
+              label: const Text('Back to Home'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppTheme.emeraldPrimary,
+                side: const BorderSide(color: AppTheme.emeraldPrimary),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -281,17 +435,7 @@ class _ResultScreenState extends State<ResultScreen> {
   Future<void> _saveImage(int index) async {
     try {
       final bytes = _generatedImages[index];
-      if (kIsWeb) {
-        // Web Download logic
-        // We can't use Gal on web easily without extra setup or checking support
-        // Simplest web download: Anchor element
-        // But since we can't import universal_html easily without adding dependency
-        // We will try Gal, if it fails, we show message.
-        // Actually Gal 2.3.0+ supports Web download!
-        await Gal.putImageBytes(bytes);
-      } else {
-        await Gal.putImageBytes(bytes);
-      }
+      await Gal.putImageBytes(bytes);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

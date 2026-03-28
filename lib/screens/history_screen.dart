@@ -34,6 +34,37 @@ class _HistoryScreenState extends State<HistoryScreen> {
     }
   }
 
+  Future<void> _deleteProject(ProjectModel project) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Project'),
+        content: const Text('This will permanently delete this project and all its images. Are you sure?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await StorageService().deleteProject(project.id);
+      _loadHistory();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Project deleted')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -66,7 +97,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (project.generatedImagePaths.isNotEmpty)
+                        if (_hasGeneratedImages(project))
                           SizedBox(
                             height: 150,
                             width: double.infinity,
@@ -74,27 +105,39 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           ),
                         Padding(
                           padding: const EdgeInsets.all(12),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          child: Row(
                             children: [
-                              Text(
-                                project.prompts.isNotEmpty
-                                    ? project.prompts.first
-                                    : 'Untitled Project',
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      project.prompts.isNotEmpty
+                                          ? project.prompts.first
+                                          : 'Untitled Project',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                        color: Color(0xFF1A1A1A),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '${_getVariationCount(project)} variations • ${project.timestamp.toString().split('.')[0]}',
+                                      style: TextStyle(
+                                        color: Colors.grey[600],
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 8),
-                              Text(
-                                '${project.generatedImagePaths.length} variations • ${project.timestamp.toString().split('.')[0]}',
-                                style: TextStyle(
-                                  color: Colors.grey[600],
-                                  fontSize: 12,
-                                ),
+                              IconButton(
+                                onPressed: () => _deleteProject(project),
+                                icon: const Icon(Icons.delete_outline, color: Colors.red),
+                                tooltip: 'Delete project',
                               ),
                             ],
                           ),
@@ -106,6 +149,21 @@ class _HistoryScreenState extends State<HistoryScreen> {
               },
             ),
     );
+  }
+
+  bool _hasGeneratedImages(ProjectModel project) {
+    if (kIsWeb) {
+      return project.generatedImageBase64s != null &&
+          project.generatedImageBase64s!.isNotEmpty;
+    }
+    return project.generatedImagePaths.isNotEmpty;
+  }
+
+  int _getVariationCount(ProjectModel project) {
+    if (kIsWeb) {
+      return project.generatedImageBase64s?.length ?? 0;
+    }
+    return project.generatedImagePaths.length;
   }
 
   Widget _buildProjectImage(ProjectModel project, int index) {
