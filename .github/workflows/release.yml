@@ -1,30 +1,61 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
+    types: [closed]
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
+    if: github.event.pull_request.merged == true && (startsWith(github.event.pull_request.head.ref, 'feat_') || startsWith(github.event.pull_request.head.ref, 'ptch_') || startsWith(github.event.pull_request.head.ref, 'fix_'))
     runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get latest tag and compute next version
+        id: version
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+
+          LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v0.0.0"
+          fi
+
+          VERSION="${LATEST_TAG#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          if [[ "$BRANCH" == feat_* ]]; then
+            # Feature: bump major version
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          elif [[ "$BRANCH" == ptch_* ]]; then
+            # Patch update: bump minor version
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [[ "$BRANCH" == fix_* ]]; then
+            # Fix: bump patch version
+            PATCH=$((PATCH + 1))
+          fi
+
+          NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "tag=$NEW_TAG" >> $GITHUB_OUTPUT
+          echo "prev_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          echo "New version: $NEW_TAG (previous: $LATEST_TAG)"
 
       - name: Decode Secrets
         run: |
           echo "${{ secrets.GOOGLE_SERVICE_JSON }}" | base64 -D > android/app/google-services.json
           echo "${{ secrets.GOOGLE_SERVICE_PLIST }}" | base64 -D > ios/Runner/GoogleService-Info.plist
           echo "${{ secrets.APP_ENV }}" | base64 -D > .env
-          echo "${{ secrets.TEST }}" | base64 -D > test.json
-
-      - name: Test
-        run: |
-          cat test.json
 
       - uses: actions/setup-java@v3
         with:
@@ -51,37 +82,26 @@ jobs:
           cd ..
           zip -r ios-app.zip Payload
 
-      - name: Get Version
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      - name: Create Tag
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          release_name: Release ${{ steps.get_version.outputs.VERSION }}
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: Release ${{ steps.version.outputs.tag }}
+          body: |
+            ## ${{ github.event.pull_request.title }}
+
+            ${{ github.event.pull_request.body }}
+
+            **Full Changelog**: ${{ github.server_url }}/${{ github.repository }}/compare/${{ steps.version.outputs.prev_tag }}...${{ steps.version.outputs.tag }}
           draft: false
           prerelease: false
-
-      - name: Upload Release Asset (APK)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/app/outputs/flutter-apk/app-release.apk
-          asset_name: app-release.apk
-          asset_content_type: application/vnd.android.package-archive
-
-      - name: Upload Release Asset (iOS)
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/ios/iphoneos/ios-app.zip
-          asset_name: ios-app.zip
-          asset_content_type: application/zip
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+            build/ios/iphoneos/ios-app.zip
