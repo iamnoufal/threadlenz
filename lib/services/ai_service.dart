@@ -20,7 +20,7 @@ class AiService {
     );
   }
 
-  Future<List<String>> generatePrompts(XFile imageFile) async {
+  Future<String> generatePrompt(XFile imageFile) async {
     try {
       final imageBytes = await imageFile.readAsBytes();
       final content = [
@@ -28,9 +28,9 @@ class AiService {
           TextPart(
             "You are an expert e-commerce photographer and stylist. "
             "Analyze this image. Identify the product (e.g., saree blouse, baby dress, jewelry). "
-            "Create 4 distinct, high-quality prompts to place this product in a professional e-commerce setting. "
-            "The backgrounds should be clean, aesthetic, and suitable for listing on platforms like Amazon/Instagram. "
-            "Return a JSON object with a key 'prompts' which is a list of strings.",
+            "Create 1 high-quality prompt to place this product in a professional e-commerce setting. "
+            "The background should be clean, aesthetic, and suitable for listing on platforms like Amazon/Instagram. "
+            "Return a JSON object with a key 'prompt' which is a single string.",
           ),
           InlineDataPart('image/jpeg', imageBytes),
         ]),
@@ -40,10 +40,10 @@ class AiService {
       print("Gemini Response: ${response.text}"); // Verification log
 
       final jsonResponse = jsonDecode(response.text!) as Map<String, dynamic>;
-      if (jsonResponse.containsKey('prompts')) {
-        return List<String>.from(jsonResponse['prompts'] as List);
+      if (jsonResponse.containsKey('prompt')) {
+        return jsonResponse['prompt'] as String;
       } else {
-        throw Exception("Invalid JSON structure: missing 'prompts' key");
+        throw Exception("Invalid JSON structure: missing 'prompt' key");
       }
     } catch (e) {
       print("AI Service Error: $e");

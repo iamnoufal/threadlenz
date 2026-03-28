@@ -28,6 +28,23 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
     }
   }
 
+  Future<void> _pickMultipleImages() async {
+    final List<XFile> images = await _picker.pickMultiImage();
+    if (images.isNotEmpty) {
+      setState(() {
+        // Fill empty slots first, then overwrite from the beginning
+        int slotIndex = _images.indexWhere((img) => img == null);
+        if (slotIndex == -1) slotIndex = 0;
+
+        for (final image in images) {
+          if (slotIndex >= 4) break;
+          _images[slotIndex] = image;
+          slotIndex++;
+        }
+      });
+    }
+  }
+
   void _removeImage(int index) {
     setState(() {
       _images[index] = null;
@@ -59,7 +76,17 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
                   const Text(
                     'Add a few angles of your product. The more details, the better the result.',
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _pickMultipleImages,
+                    icon: const Icon(Icons.photo_library_outlined),
+                    label: const Text('Select Multiple Photos'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppTheme.emeraldPrimary,
+                      side: const BorderSide(color: AppTheme.emeraldPrimary),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
                   GridView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),

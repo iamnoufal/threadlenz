@@ -3,19 +3,31 @@ import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 
 class ImageGenerationService {
-  // This service now uses the Gemini Developer API via firebase_ai
-  // to perform image editing (Prompt + Image -> Edited Image).
+  static const int maxGenerations = 6;
 
-  Future<List<Uint8List>> generateEditedImages(
-    List<String> prompts,
-    List<XFile> originalImages,
-  ) async {
+  static const List<String> _diversityInstructions = [
+    "Use soft, diffused natural window lighting. Place the product on a clean white surface with minimal props.",
+    "Use dramatic, high-contrast studio lighting with deep shadows. Place the product against a dark, moody backdrop.",
+    "Use a clean, minimalist flat-lay composition shot from directly above. Bright, even lighting with a pastel-colored background.",
+    "Create a lifestyle scene with the product placed in a realistic in-use context. Warm ambient lighting with complementary decor elements.",
+    "Use warm, golden-hour inspired lighting with a cozy, earthy-toned background. Include natural textures like wood or linen.",
+    "Create a bold, editorial-style composition with vibrant, saturated colors. Use geometric props or colorful backdrops for a striking look.",
+  ];
+
+  Future<Uint8List> generateSingleImage({
+    required String prompt,
+    required List<XFile> originalImages,
+    required int variationIndex,
+    List<String> previousStyles = const [],
+  }) async {
     try {
-      if (prompts.isEmpty || originalImages.isEmpty) {
-        throw Exception("Missing prompts or images");
+      if (originalImages.isEmpty) {
+        throw Exception("Missing images");
+      }
+      if (variationIndex < 0 || variationIndex >= maxGenerations) {
+        throw Exception("Invalid variation index");
       }
 
-      // Ensure Firebase is initialized
       final model = FirebaseAI.googleAI().generativeModel(
         model: 'gemini-2.5-flash-image',
         generationConfig: GenerationConfig(
@@ -26,79 +38,47 @@ class ImageGenerationService {
         ),
       );
 
-      // Execute 4 requests in parallel.
-      // We distribute the input images and prompts across these 4 requests.
-      final futures = List.generate(4, (index) async {
-        // Round-robin selection of prompt and image
-        // e.g. if we have 2 images: req0->img0, req1->img1, req2->img0, req3->img1
-        final prompt = prompts[index % prompts.length];
-        final image = originalImages[index % originalImages.length];
+      final image = originalImages[variationIndex % originalImages.length];
+      final imageBytes = await image.readAsBytes();
 
-        final imageBytes = await image.readAsBytes();
+      final diversityInstruction = _diversityInstructions[variationIndex];
 
-        // Add specific instructions to enforce diversity based on the variation index
-        String diversityInstruction = "";
-        switch (index) {
-          case 0:
-            diversityInstruction = "Ensure the lighting is soft and natural.";
-            break;
-          case 1:
-            diversityInstruction =
-                "Use dramatic, high-contrast studio lighting.";
-            break;
-          case 2:
-            diversityInstruction = "Focus on a clean, minimalist composition.";
-            break;
-          case 3:
-            diversityInstruction =
-                "Include subtle lifestyle elements in the background.";
-            break;
-        }
+      // Build an avoidance clause from previous styles
+      String avoidClause = '';
+      if (previousStyles.isNotEmpty) {
+        avoidClause =
+            " IMPORTANT: This image must look completely different from previous variations. "
+            "Avoid these styles already used: ${previousStyles.join('; ')}. "
+            "Use a distinctly different background, lighting, color palette, and composition.";
+      }
 
-        final fullPrompt = "$prompt. $diversityInstruction";
+      final fullPrompt = "$prompt. $diversityInstruction$avoidClause";
 
-        final imagePart = InlineDataPart('image/jpeg', imageBytes);
-        final textPart = TextPart(fullPrompt);
-        final content = Content.multi([textPart, imagePart]);
+      debugPrint("=== Image Generation Request [Variation $variationIndex] ===");
+      debugPrint("Full Prompt: $fullPrompt");
 
-        return model.generateContent([content]);
-      });
+      final imagePart = InlineDataPart('image/jpeg', imageBytes);
+      final textPart = TextPart(fullPrompt);
+      final content = Content.multi([textPart, imagePart]);
 
-      final responses = await Future.wait(futures);
+      final response = await model.generateContent([content]);
 
-      final allImages = <Uint8List>[];
+      // Extract image from response
+      if (response.inlineDataParts.isNotEmpty) {
+        return response.inlineDataParts.first.bytes;
+      }
 
-      for (final response in responses) {
-        // Check inline parts
-        if (response.inlineDataParts.isNotEmpty) {
-          allImages.addAll(response.inlineDataParts.map((p) => p.bytes));
-        }
-
-        // Check candidates
-        if (response.candidates.isNotEmpty) {
-          for (final candidate in response.candidates) {
-            for (final part in candidate.content.parts) {
-              if (part is InlineDataPart) {
-                bool alreadyAdded = allImages.any(
-                  (img) => listEquals(img, part.bytes),
-                );
-                if (!alreadyAdded) {
-                  allImages.add(part.bytes);
-                }
-              }
+      if (response.candidates.isNotEmpty) {
+        for (final candidate in response.candidates) {
+          for (final part in candidate.content.parts) {
+            if (part is InlineDataPart) {
+              return part.bytes;
             }
           }
         }
       }
 
-      if (allImages.isNotEmpty) {
-        return allImages;
-      } else {
-        debugPrint(
-          'Gemini Image Edit: No images were generated from any request.',
-        );
-        throw Exception('No images returned by the model.');
-      }
+      throw Exception('No image returned by the model.');
     } catch (e) {
       debugPrint("ImageGenerationService Error: $e");
       final err = e.toString();
@@ -112,4 +92,7 @@ class ImageGenerationService {
       rethrow;
     }
   }
+
+  /// Returns the diversity instruction for a given index (used for tracking).
+  static String getDiversityLabel(int index) => _diversityInstructions[index];
 }
