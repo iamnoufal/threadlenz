@@ -146,7 +146,7 @@ class _HomeScreenState extends State<HomeScreen> {
           'Welcome back,',
           style: TextStyle(
             fontSize: 16,
-            color: AppTheme.emeraldPrimary.withOpacity(0.7),
+            color: AppTheme.emeraldPrimary.withValues(alpha:0.7),
           ),
         ),
         const SizedBox(height: 8),
@@ -171,7 +171,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.emeraldPrimary.withOpacity(0.3),
+            color: AppTheme.emeraldPrimary.withValues(alpha:0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -215,7 +215,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         'Upload photos & let AI do the magic',
                         style: TextStyle(
-                          color: Colors.white.withOpacity(0.8),
+                          color: Colors.white.withValues(alpha:0.8),
                           fontSize: 14,
                         ),
                       ),
@@ -225,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha:0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.arrow_forward, color: Colors.white),
@@ -261,7 +261,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'No projects yet',
                     style: TextStyle(
-                      color: AppTheme.emeraldPrimary.withOpacity(0.5),
+                      color: AppTheme.emeraldPrimary.withValues(alpha:0.5),
                     ),
                   ),
                 ],

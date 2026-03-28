@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -211,7 +210,7 @@ class _ResultScreenState extends State<ResultScreen> {
             const SizedBox(height: 8),
             Text(
               'This may take a few moments',
-              style: TextStyle(color: AppTheme.emeraldPrimary.withOpacity(0.6)),
+              style: TextStyle(color: AppTheme.emeraldPrimary.withValues(alpha:0.6)),
             ),
           ],
         ),
@@ -369,7 +368,7 @@ class _ResultScreenState extends State<ResultScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha:0.05),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),

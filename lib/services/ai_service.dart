@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:firebase_ai/firebase_ai.dart';
+import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 
 class AiService {
@@ -37,7 +38,7 @@ class AiService {
       ];
 
       final response = await _model.generateContent(content);
-      print("Gemini Response: ${response.text}"); // Verification log
+      debugPrint("Gemini Response: ${response.text}"); // Verification log
 
       final jsonResponse = jsonDecode(response.text!) as Map<String, dynamic>;
       if (jsonResponse.containsKey('prompt')) {
@@ -46,7 +47,7 @@ class AiService {
         throw Exception("Invalid JSON structure: missing 'prompt' key");
       }
     } catch (e) {
-      print("AI Service Error: $e");
+      debugPrint("AI Service Error: $e");
       final err = e.toString();
       if (err.contains('403') || err.contains('billing')) {
         throw Exception(
