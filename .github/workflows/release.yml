@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true && (contains(github.event.pull_request.labels.*.name, 'release - minor') || contains(github.event.pull_request.labels.*.name, 'release - major'))
+    if: github.event.pull_request.merged == true && (startsWith(github.event.pull_request.head.ref, 'feat_') || startsWith(github.event.pull_request.head.ref, 'ptch_') || startsWith(github.event.pull_request.head.ref, 'fix_'))
     runs-on: macos-latest
 
     steps:
@@ -20,34 +20,30 @@ jobs:
       - name: Get latest tag and compute next version
         id: version
         run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+
           LATEST_TAG=$(git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)
           if [ -z "$LATEST_TAG" ]; then
             LATEST_TAG="v0.0.0"
           fi
 
-          # Parse version components
           VERSION="${LATEST_TAG#v}"
           MAJOR=$(echo "$VERSION" | cut -d. -f1)
           MINOR=$(echo "$VERSION" | cut -d. -f2)
           PATCH=$(echo "$VERSION" | cut -d. -f3)
 
-          IS_MAJOR="${{ contains(github.event.pull_request.labels.*.name, 'release - major') }}"
-
-          if [ "$IS_MAJOR" = "true" ]; then
+          if [[ "$BRANCH" == feat_* ]]; then
+            # Feature: bump major version
             MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
-          else
-            # Minor release: increment patch, roll over at 9
+          elif [[ "$BRANCH" == ptch_* ]]; then
+            # Patch update: bump minor version
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          elif [[ "$BRANCH" == fix_* ]]; then
+            # Fix: bump patch version
             PATCH=$((PATCH + 1))
-            if [ "$PATCH" -gt 9 ]; then
-              PATCH=0
-              MINOR=$((MINOR + 1))
-              if [ "$MINOR" -gt 9 ]; then
-                MINOR=0
-                MAJOR=$((MAJOR + 1))
-              fi
-            fi
           fi
 
           NEW_TAG="v${MAJOR}.${MINOR}.${PATCH}"
@@ -92,13 +88,6 @@ jobs:
           git config user.email "github-actions@github.com"
           git tag ${{ steps.version.outputs.tag }}
           git push origin ${{ steps.version.outputs.tag }}
-
-      - name: Generate Release Notes
-        id: notes
-        run: |
-          PR_TITLE="${{ github.event.pull_request.title }}"
-          PR_BODY="${{ github.event.pull_request.body }}"
-          echo "title=$PR_TITLE" >> $GITHUB_OUTPUT
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
