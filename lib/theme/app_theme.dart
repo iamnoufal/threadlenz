@@ -21,8 +21,7 @@ class AppTheme {
         seedColor: emeraldPrimary,
         primary: emeraldPrimary,
         secondary: goldAccent,
-        surface: Colors.white,
-        background: sandBackground,
+        surface: sandBackground,
       ),
 
       // Text Theme
@@ -45,7 +44,7 @@ class AppTheme {
         bodyLarge: GoogleFonts.lato(fontSize: 16, color: textDark, height: 1.5),
         bodyMedium: GoogleFonts.lato(
           fontSize: 14,
-          color: textDark.withOpacity(0.8),
+          color: textDark.withValues(alpha: 0.8),
         ),
       ),
 

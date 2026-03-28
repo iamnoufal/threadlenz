@@ -32,7 +32,7 @@ class ImageUploadCard extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
+                    color: Colors.black.withValues(alpha:0.05),
                     blurRadius: 5,
                     offset: const Offset(0, 2),
                   ),
@@ -59,14 +59,14 @@ class ImageUploadCard extends StatelessWidget {
                           children: [
                             Icon(
                               Icons.add_a_photo_outlined,
-                              color: AppTheme.emeraldPrimary.withOpacity(0.5),
+                              color: AppTheme.emeraldPrimary.withValues(alpha:0.5),
                               size: 32,
                             ),
                             const SizedBox(height: 8),
                             Text(
                               label,
                               style: TextStyle(
-                                color: AppTheme.emeraldPrimary.withOpacity(0.5),
+                                color: AppTheme.emeraldPrimary.withValues(alpha:0.5),
                                 fontSize: 12,
                               ),
                             ),
