@@ -1,0 +1,39 @@
+name: PR Build Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Decode Secrets
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICE_JSON }}" | base64 -D > android/app/google-services.json
+          echo "${{ secrets.GOOGLE_SERVICE_PLIST }}" | base64 -D > ios/Runner/GoogleService-Info.plist
+          echo "${{ secrets.APP_ENV }}" | base64 -D > .env
+
+      - uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Build iOS App (No Codesign)
+        run: flutter build ios --release --no-codesign
