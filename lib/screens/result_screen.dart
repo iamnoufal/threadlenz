@@ -28,7 +28,7 @@ class _ResultScreenState extends State<ResultScreen> {
   bool _isGeneratingMore = false;
   String _loadingMessage = 'Initializing...';
   String? _errorMessage;
-  List<Uint8List> _generatedImages = [];
+  final List<Uint8List> _generatedImages = [];
   String _basePrompt = '';
   late ImageGenerationService _imageService;
   final TextEditingController _feedbackController = TextEditingController();
