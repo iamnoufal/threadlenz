@@ -122,7 +122,7 @@ Two GitHub Actions workflows exist:
 - Must pass before merge
 
 ### Release (`release.yml`)
-- Triggers on: any PR merged with `feat_`, `ptch_`, or `fix_` branch prefix (no base-branch restriction)
+- Triggers on: PR merged into master with `feat_`, `ptch_`, or `fix_` branch prefix
 - Auto-computes next version from branch prefix and latest git tag
 - Builds release APK + iOS zip
 - Creates git tag and GitHub Release with:
