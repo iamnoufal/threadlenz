@@ -9,7 +9,6 @@ import '../models/project_model.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import 'project_detail_screen.dart';
-import 'auth_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -48,12 +47,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
     if (confirm == true && mounted) {
       await _authService.signOut();
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AuthScreen()),
-        );
-      }
+      // AuthGate's StreamBuilder will detect the auth state change
+      // and automatically navigate to AuthScreen
     }
   }
 

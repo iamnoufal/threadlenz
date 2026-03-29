@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/app_theme.dart';
 import '../services/auth_service.dart';
-import 'home_screen.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -18,13 +17,9 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final user = await AuthService().signInWithGoogle();
-      if (user != null && mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
-      }
+      await AuthService().signInWithGoogle();
+      // AuthGate's StreamBuilder will detect the auth state change
+      // and automatically navigate to HomeScreen
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

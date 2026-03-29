@@ -70,6 +70,11 @@ class FirestoreService {
   CollectionReference<Map<String, dynamic>> _projectsCollection(String uid) =>
       _usersCollection.doc(uid).collection('projects');
 
+  /// Generates a unique Firestore document ID for a new project.
+  String generateProjectId(String uid) {
+    return _projectsCollection(uid).doc().id;
+  }
+
   Future<ProjectModel> saveProject({
     required String uid,
     required String projectId,

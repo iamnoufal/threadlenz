@@ -100,16 +100,15 @@ class _ResultScreenState extends State<ResultScreen> {
           final cloudStorage = CloudStorageService();
           final firestoreService = FirestoreService();
 
-          // Create a temporary project ID for file paths
-          final tempProjectId =
-              DateTime.now().millisecondsSinceEpoch.toString();
+          // Generate a Firestore doc ID upfront so Storage and Firestore use the same ID
+          final projectId = firestoreService.generateProjectId(_uid!);
 
           // Upload input images
           final List<String> inputImageUrls = [];
           for (int i = 0; i < widget.originalImages.length; i++) {
             final url = await cloudStorage.uploadInputImage(
               uid: _uid!,
-              projectId: tempProjectId,
+              projectId: projectId,
               imageFile: widget.originalImages[i],
               index: i,
             );
@@ -119,7 +118,7 @@ class _ResultScreenState extends State<ResultScreen> {
           // Upload generated image
           final genUrl = await cloudStorage.uploadGeneratedImage(
             uid: _uid!,
-            projectId: tempProjectId,
+            projectId: projectId,
             imageBytes: image,
             index: 0,
           );
@@ -127,12 +126,12 @@ class _ResultScreenState extends State<ResultScreen> {
           // Save project to Firestore with same ID used for Storage paths
           await firestoreService.saveProject(
             uid: _uid!,
-            projectId: tempProjectId,
+            projectId: projectId,
             prompts: [_basePrompt],
             inputImageUrls: inputImageUrls,
             generatedImageUrls: [genUrl],
           );
-          _projectId = tempProjectId;
+          _projectId = projectId;
         }
       } catch (e) {
         debugPrint("Failed to save to cloud: $e");
