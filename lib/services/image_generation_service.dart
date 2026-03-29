@@ -1,4 +1,3 @@
-import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 
@@ -16,30 +15,25 @@ class ImageGenerationService {
 
   Future<Uint8List> generateSingleImage({
     required String prompt,
-    required List<XFile> originalImages,
     required int variationIndex,
     List<String> previousStyles = const [],
   }) async {
     try {
-      if (originalImages.isEmpty) {
-        throw Exception("Missing images");
-      }
       if (variationIndex < 0 || variationIndex >= maxGenerations) {
         throw Exception("Invalid variation index");
       }
 
-      final model = FirebaseAI.googleAI().generativeModel(
-        model: 'gemini-2.5-flash-image',
-        generationConfig: GenerationConfig(
-          responseModalities: [
-            ResponseModalities.text,
-            ResponseModalities.image,
-          ],
+      final model = FirebaseAI.vertexAI().imagenModel(
+        model: 'imagen-4.0-fast-generate-001',
+        generationConfig: ImagenGenerationConfig(
+          numberOfImages: 1,
+          aspectRatio: ImagenAspectRatio.square1x1,
+        ),
+        safetySettings: ImagenSafetySettings(
+          ImagenSafetyFilterLevel.blockOnlyHigh,
+          ImagenPersonFilterLevel.allowAll,
         ),
       );
-
-      final image = originalImages[variationIndex % originalImages.length];
-      final imageBytes = await image.readAsBytes();
 
       final diversityInstruction = _diversityInstructions[variationIndex];
 
@@ -57,25 +51,10 @@ class ImageGenerationService {
       debugPrint("=== Image Generation Request [Variation $variationIndex] ===");
       debugPrint("Full Prompt: $fullPrompt");
 
-      final imagePart = InlineDataPart('image/jpeg', imageBytes);
-      final textPart = TextPart(fullPrompt);
-      final content = Content.multi([textPart, imagePart]);
+      final response = await model.generateImages(fullPrompt);
 
-      final response = await model.generateContent([content]);
-
-      // Extract image from response
-      if (response.inlineDataParts.isNotEmpty) {
-        return response.inlineDataParts.first.bytes;
-      }
-
-      if (response.candidates.isNotEmpty) {
-        for (final candidate in response.candidates) {
-          for (final part in candidate.content.parts) {
-            if (part is InlineDataPart) {
-              return part.bytes;
-            }
-          }
-        }
+      if (response.images.isNotEmpty) {
+        return response.images.first.bytesBase64Encoded;
       }
 
       throw Exception('No image returned by the model.');

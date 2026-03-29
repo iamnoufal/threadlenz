@@ -11,12 +11,10 @@ class AiService {
   late GenerativeModel _model;
 
   void initialize() {
-    // IMPORTANT: In a real app, ensure Firebase.initializeApp() is called before this.
-    // The model name 'gemini-1.5-flash' is good for speed/multimodal.
     _model = FirebaseAI.googleAI().generativeModel(
-      model: 'gemini-2.5-flash',
+      model: 'gemini-2.5-flash-lite',
       generationConfig: GenerationConfig(
-        responseMimeType: 'application/json', // Force JSON output
+        responseMimeType: 'application/json',
       ),
     );
   }
@@ -28,8 +26,9 @@ class AiService {
         Content.multi([
           TextPart(
             "You are an expert e-commerce photographer and stylist. "
-            "Analyze this image. Identify the product (e.g., saree blouse, baby dress, jewelry). "
-            "Create 1 high-quality prompt to place this product in a professional e-commerce setting. "
+            "Analyze this image in detail. Identify the product type, color, pattern, fabric/material, and any distinctive features. "
+            "Create 1 highly detailed text-to-image prompt that describes this exact product and places it in a professional e-commerce setting. "
+            "The prompt must include a thorough description of the product itself (since the image generation model will NOT have access to the original photo). "
             "The background should be clean, aesthetic, and suitable for listing on platforms like Amazon/Instagram. "
             "Return a JSON object with a key 'prompt' which is a single string.",
           ),
@@ -38,7 +37,7 @@ class AiService {
       ];
 
       final response = await _model.generateContent(content);
-      debugPrint("Gemini Response: ${response.text}"); // Verification log
+      debugPrint("Gemini Response: ${response.text}");
 
       final jsonResponse = jsonDecode(response.text!) as Map<String, dynamic>;
       if (jsonResponse.containsKey('prompt')) {
