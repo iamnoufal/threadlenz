@@ -135,13 +135,12 @@ class _AuthScreenState extends State<AuthScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Image.network(
-                              'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                              'https://lh3.googleusercontent.com/COxitqgJr1sJnIDe8-jiKhxDx1FrYbtRHKJ9z_hELisAlapwE9LUPh6fcXif5f_KgFk',
                               height: 24,
                               width: 24,
                               errorBuilder: (_, _, _) => const Icon(
                                 Icons.g_mobiledata,
                                 size: 28,
-                                color: Colors.red,
                               ),
                             ),
                             const SizedBox(width: 12),

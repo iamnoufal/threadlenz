@@ -72,14 +72,15 @@ class FirestoreService {
 
   Future<ProjectModel> saveProject({
     required String uid,
+    required String projectId,
     required List<String> prompts,
     required List<String> inputImageUrls,
     required List<String> generatedImageUrls,
   }) async {
-    final docRef = _projectsCollection(uid).doc();
+    final docRef = _projectsCollection(uid).doc(projectId);
 
     final project = ProjectModel(
-      id: docRef.id,
+      id: projectId,
       userId: uid,
       timestamp: DateTime.now(),
       inputImagePaths: [],

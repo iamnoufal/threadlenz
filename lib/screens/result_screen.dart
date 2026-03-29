@@ -124,14 +124,15 @@ class _ResultScreenState extends State<ResultScreen> {
             index: 0,
           );
 
-          // Save project to Firestore
-          final project = await firestoreService.saveProject(
+          // Save project to Firestore with same ID used for Storage paths
+          await firestoreService.saveProject(
             uid: _uid!,
+            projectId: tempProjectId,
             prompts: [_basePrompt],
             inputImageUrls: inputImageUrls,
             generatedImageUrls: [genUrl],
           );
-          _projectId = project.id;
+          _projectId = tempProjectId;
         }
       } catch (e) {
         debugPrint("Failed to save to cloud: $e");
