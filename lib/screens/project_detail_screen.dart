@@ -1,10 +1,10 @@
-import 'dart:convert'; // for base64Decode
-import 'package:flutter/foundation.dart'; // for kIsWeb
 import 'package:flutter/material.dart';
-import 'package:universal_io/io.dart' show File;
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../models/project_model.dart';
-import '../services/storage_service.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../services/cloud_storage_service.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
 class ProjectDetailScreen extends StatelessWidget {
@@ -12,12 +12,16 @@ class ProjectDetailScreen extends StatelessWidget {
 
   const ProjectDetailScreen({super.key, required this.project});
 
+  String? get _uid => AuthService().currentUser?.uid;
+
   Future<void> _deleteProject(BuildContext context) async {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete Project'),
-        content: const Text('This will permanently delete this project and all its images. Are you sure?'),
+        content: const Text(
+          'This will permanently delete this project and all its images. Are you sure?',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -32,10 +36,14 @@ class ProjectDetailScreen extends StatelessWidget {
       ),
     );
 
-    if (confirm == true) {
-      await StorageService().deleteProject(project.id);
+    if (confirm == true && _uid != null) {
+      await CloudStorageService().deleteProjectFiles(
+        uid: _uid!,
+        projectId: project.id,
+      );
+      await FirestoreService().deleteProject(_uid!, project.id);
       if (context.mounted) {
-        Navigator.pop(context, true); // return true to signal deletion
+        Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Project deleted')),
         );
@@ -73,13 +81,14 @@ class ProjectDetailScreen extends StatelessWidget {
                 mainAxisSpacing: 16,
                 childAspectRatio: 0.8,
               ),
-              itemCount: kIsWeb
-                  ? (project.generatedImageBase64s?.length ?? 0)
-                  : project.generatedImagePaths.length,
+              itemCount: project.generatedImageUrls.length,
               itemBuilder: (context, index) {
                 return ClipRRect(
                   borderRadius: BorderRadius.circular(12),
-                  child: _buildImage(context, index, isGenerated: true),
+                  child: _buildNetworkImage(
+                    context,
+                    project.generatedImageUrls[index],
+                  ),
                 );
               },
             ),
@@ -106,88 +115,77 @@ class ProjectDetailScreen extends StatelessWidget {
                     )
                   : const Text(
                       'No prompt info',
-                      style: TextStyle(fontSize: 16, height: 1.5, color: Colors.black54),
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 1.5,
+                        color: Colors.black54,
+                      ),
                     ),
             ),
             const SizedBox(height: 32),
 
             // Input Images
-            Text('Input Images', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 16),
-            SizedBox(
-              height: 100,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: kIsWeb
-                    ? (project.inputImageBase64s?.length ?? 0)
-                    : project.inputImagePaths.length,
-                separatorBuilder: (_, __) => const SizedBox(width: 12),
-                itemBuilder: (context, index) {
-                  return ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: _buildImage(context, index, isGenerated: false),
-                    ),
-                  );
-                },
+            if (project.inputImageUrls.isNotEmpty) ...[
+              Text(
+                'Input Images',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-            ),
-            const SizedBox(height: 32),
+              const SizedBox(height: 16),
+              SizedBox(
+                height: 100,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: project.inputImageUrls.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: SizedBox(
+                        width: 100,
+                        height: 100,
+                        child: _buildNetworkImage(
+                          context,
+                          project.inputImageUrls[index],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 32),
+            ],
           ],
         ),
       ),
     );
   }
 
-  Widget _buildImage(
-    BuildContext context,
-    int index, {
-    required bool isGenerated,
-  }) {
-    if (kIsWeb) {
-      final list = isGenerated
-          ? project.generatedImageBase64s
-          : project.inputImageBase64s;
-      if (list != null && index < list.length) {
-        final b64 = list[index];
-        final bytes = base64Decode(b64);
-        return InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FullScreenImageViewer(base64Image: b64),
+  Widget _buildNetworkImage(BuildContext context, String imageUrl) {
+    return InkWell(
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FullScreenImageViewer(networkImageUrl: imageUrl),
+        ),
+      ),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => Container(
+          color: Colors.grey[200],
+          child: const Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2),
             ),
           ),
-          child: Image.memory(
-            bytes,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-          ),
-        );
-      }
-    } else {
-      final list = isGenerated
-          ? project.generatedImagePaths
-          : project.inputImagePaths;
-      if (index < list.length) {
-        final path = list[index];
-        return InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => FullScreenImageViewer(imagePath: path),
-            ),
-          ),
-          child: Image.file(
-            File(path),
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-          ),
-        );
-      }
-    }
-    return const Icon(Icons.image_not_supported);
+        ),
+        errorWidget: (_, _, _) => Container(
+          color: Colors.grey[200],
+          child: const Icon(Icons.broken_image),
+        ),
+      ),
+    );
   }
 }

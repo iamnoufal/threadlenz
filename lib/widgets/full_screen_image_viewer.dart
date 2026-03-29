@@ -1,18 +1,21 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:universal_io/io.dart';
 
 class FullScreenImageViewer extends StatelessWidget {
   final String? imagePath;
   final String? base64Image;
   final Uint8List? imageBytes;
+  final String? networkImageUrl;
 
   const FullScreenImageViewer({
     super.key,
     this.imagePath,
     this.base64Image,
     this.imageBytes,
+    this.networkImageUrl,
   });
 
   @override
@@ -35,12 +38,24 @@ class FullScreenImageViewer extends StatelessWidget {
   }
 
   Widget _buildImage() {
+    // 0. Network URL (cloud images)
+    if (networkImageUrl != null) {
+      return CachedNetworkImage(
+        imageUrl: networkImageUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, _) => const Center(
+          child: CircularProgressIndicator(color: Colors.white54),
+        ),
+        errorWidget: (_, _, _) => _errorWidget(),
+      );
+    }
+
     // 1. Direct bytes (highest priority if provided)
     if (imageBytes != null) {
       return Image.memory(
         imageBytes!,
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _errorWidget(),
+        errorBuilder: (_, _, _) => _errorWidget(),
       );
     }
 
@@ -51,7 +66,7 @@ class FullScreenImageViewer extends StatelessWidget {
         return Image.memory(
           bytes,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _errorWidget(),
+          errorBuilder: (_, _, _) => _errorWidget(),
         );
       } catch (e) {
         return _errorWidget();
@@ -61,17 +76,16 @@ class FullScreenImageViewer extends StatelessWidget {
     // 3. File Path (Mobile)
     if (imagePath != null) {
       if (kIsWeb) {
-        // Fallback for web if path is somehow passed (e.g. invalid usage)
         return Image.network(
           imagePath!,
           fit: BoxFit.contain,
-          errorBuilder: (_, __, ___) => _errorWidget(),
+          errorBuilder: (_, _, _) => _errorWidget(),
         );
       }
       return Image.file(
         File(imagePath!),
         fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _errorWidget(),
+        errorBuilder: (_, _, _) => _errorWidget(),
       );
     }
 

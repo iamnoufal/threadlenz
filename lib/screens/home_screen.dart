@@ -1,14 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'dart:convert';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../theme/app_theme.dart';
 
 import 'image_picker_screen.dart';
 import 'history_screen.dart';
 import '../models/project_model.dart';
-import '../services/storage_service.dart';
-import 'package:universal_io/io.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import 'project_detail_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -19,15 +18,64 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Use a key or just setState to rebuild logic
-  // Simple way: just call setState when back
+  final _authService = AuthService();
+
+  String get _userName =>
+      _authService.currentUser?.displayName ?? 'Creator';
+  String? get _userPhotoUrl => _authService.currentUser?.photoURL;
+  String? get _uid => _authService.currentUser?.uid;
+
+  Future<void> _signOut() async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Sign Out'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      await _authService.signOut();
+      // AuthGate's StreamBuilder will detect the auth state change
+      // and automatically navigate to AuthScreen
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('ThreadLenz'),
-        actions: const [],
+        actions: [
+          if (_userPhotoUrl != null)
+            GestureDetector(
+              onTap: _signOut,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundImage: CachedNetworkImageProvider(_userPhotoUrl!),
+                ),
+              ),
+            )
+          else
+            IconButton(
+              onPressed: _signOut,
+              icon: const Icon(Icons.logout),
+              tooltip: 'Sign Out',
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Padding(
@@ -53,7 +101,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(
                           builder: (context) => const HistoryScreen(),
                         ),
-                      ).then((_) => setState(() {})); // Refresh on return
+                      ).then((_) => setState(() {}));
                     },
                     child: const Text('See All'),
                   ),
@@ -69,8 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildRecentProjectsList() {
+    if (_uid == null) {
+      return _buildRecentProjectsPlaceholder();
+    }
+
     return FutureBuilder<List<ProjectModel>>(
-      future: StorageService().getRecentProjects(limit: 3),
+      future: FirestoreService().getProjects(_uid!, limit: 3),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return _buildRecentProjectsPlaceholder(isLoading: true);
@@ -103,11 +155,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   contentPadding: const EdgeInsets.all(8),
                   leading: ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: _hasGeneratedImages(project)
+                    child: project.generatedImageUrls.isNotEmpty
                         ? SizedBox(
                             width: 60,
                             height: 60,
-                            child: _buildProjectThumb(project),
+                            child: CachedNetworkImage(
+                              imageUrl: project.generatedImageUrls.first,
+                              fit: BoxFit.cover,
+                              placeholder: (_, _) => Container(
+                                color: Colors.grey[200],
+                                child: const Center(
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              errorWidget: (_, _, _) =>
+                                  const Icon(Icons.broken_image),
+                            ),
                           )
                         : Container(
                             width: 60,
@@ -122,10 +191,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         : 'Untitled',
                     maxLines: 3,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppTheme.textDark),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: AppTheme.textDark,
+                    ),
                   ),
                   subtitle: Text(
-                    '${_getVariationCount(project)} Variations',
+                    '${project.generatedImageUrls.length} Variations',
                     style: TextStyle(color: Colors.grey[600]),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -143,10 +216,10 @@ class _HomeScreenState extends State<HomeScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Welcome back,',
+          'Welcome back, $_userName',
           style: TextStyle(
             fontSize: 16,
-            color: AppTheme.emeraldPrimary.withValues(alpha:0.7),
+            color: AppTheme.emeraldPrimary.withValues(alpha: 0.7),
           ),
         ),
         const SizedBox(height: 8),
@@ -171,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen> {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.emeraldPrimary.withValues(alpha:0.3),
+            color: AppTheme.emeraldPrimary.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 5),
           ),
@@ -215,7 +288,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       Text(
                         'Upload photos & let AI do the magic',
                         style: TextStyle(
-                          color: Colors.white.withValues(alpha:0.8),
+                          color: Colors.white.withValues(alpha: 0.8),
                           fontSize: 14,
                         ),
                       ),
@@ -225,7 +298,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha:0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.arrow_forward, color: Colors.white),
@@ -261,47 +334,12 @@ class _HomeScreenState extends State<HomeScreen> {
                   Text(
                     'No projects yet',
                     style: TextStyle(
-                      color: AppTheme.emeraldPrimary.withValues(alpha:0.5),
+                      color: AppTheme.emeraldPrimary.withValues(alpha: 0.5),
                     ),
                   ),
                 ],
               ),
       ),
     );
-  }
-
-  bool _hasGeneratedImages(ProjectModel project) {
-    if (kIsWeb) {
-      return project.generatedImageBase64s != null &&
-          project.generatedImageBase64s!.isNotEmpty;
-    }
-    return project.generatedImagePaths.isNotEmpty;
-  }
-
-  int _getVariationCount(ProjectModel project) {
-    if (kIsWeb) {
-      return project.generatedImageBase64s?.length ?? 0;
-    }
-    return project.generatedImagePaths.length;
-  }
-
-  Widget _buildProjectThumb(ProjectModel project) {
-    if (kIsWeb &&
-        project.generatedImageBase64s != null &&
-        project.generatedImageBase64s!.isNotEmpty) {
-      final bytes = base64Decode(project.generatedImageBase64s!.first);
-      return Image.memory(
-        bytes,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-      );
-    } else if (!kIsWeb && project.generatedImagePaths.isNotEmpty) {
-      return Image.file(
-        File(project.generatedImagePaths.first),
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
-      );
-    }
-    return const Icon(Icons.image);
   }
 }
