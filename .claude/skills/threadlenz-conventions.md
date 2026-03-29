@@ -28,7 +28,7 @@ Rules:
 
 ## Coding Standards (Flutter/Dart)
 
-The project uses `flutter_lints` (v6+) with strict analysis. All code must pass `flutter analyze` with **zero issues** before committing.
+The project uses `flutter_lints` (^5.0.0) with strict analysis. All code must pass `flutter analyze` with **zero issues** before committing.
 
 ### Required patterns
 
