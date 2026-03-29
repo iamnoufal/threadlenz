@@ -76,6 +76,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
       final image = await _imageService.generateSingleImage(
         prompt: _basePrompt,
+        originalImages: widget.originalImages,
         variationIndex: 0,
         previousStyles: [],
       );
@@ -151,6 +152,7 @@ class _ResultScreenState extends State<ResultScreen> {
 
       final image = await _imageService.generateSingleImage(
         prompt: prompt,
+        originalImages: widget.originalImages,
         variationIndex: nextIndex,
         previousStyles: _usedStyles,
       );
