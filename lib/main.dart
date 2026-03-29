@@ -1,27 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'theme/app_theme.dart';
 import 'screens/home_screen.dart';
-
-import 'package:firebase_auth/firebase_auth.dart';
+import 'screens/auth_screen.dart';
 import 'firebase_options.dart';
-
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  // Authenticate anonymously so we have a user token for later services
-  try {
-    await FirebaseAuth.instance.signInAnonymously();
-    debugPrint(
-      "Signed in anonymously as ${FirebaseAuth.instance.currentUser?.uid}",
-    );
-  } catch (e) {
-    debugPrint("Failed to sign in anonymously: $e");
-  }
 
   runApp(const TailorMadeApp());
 }
@@ -35,7 +24,36 @@ class TailorMadeApp extends StatelessWidget {
       title: 'ThreadLenz',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
-      home: const HomeScreen(),
+      home: const AuthGate(),
+    );
+  }
+}
+
+/// Listens to auth state and routes to AuthScreen or HomeScreen.
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(
+              child: CircularProgressIndicator(
+                color: AppTheme.emeraldPrimary,
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasData && snapshot.data != null) {
+          return const HomeScreen();
+        }
+
+        return const AuthScreen();
+      },
     );
   }
 }
