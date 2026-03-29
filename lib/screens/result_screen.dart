@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import 'package:flutter/foundation.dart'; // for kIsWeb
+import 'package:flutter/foundation.dart';
 import '../theme/app_theme.dart';
 import '../services/image_generation_service.dart';
 import '../services/ai_service.dart';
-import '../services/storage_service.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
+import '../services/cloud_storage_service.dart';
 import 'package:gal/gal.dart';
 import '../widgets/full_screen_image_viewer.dart';
 
@@ -40,6 +42,8 @@ class _ResultScreenState extends State<ResultScreen> {
   bool get _canGenerateMore =>
       _generationCount < ImageGenerationService.maxGenerations;
 
+  String? get _uid => AuthService().currentUser?.uid;
+
   @override
   void dispose() {
     _feedbackController.dispose();
@@ -63,7 +67,9 @@ class _ResultScreenState extends State<ResultScreen> {
       aiService.initialize();
 
       // STEP 1: ANALYSIS
-      if (mounted) setState(() => _loadingMessage = 'Analyzing your images...');
+      if (mounted) {
+        setState(() => _loadingMessage = 'Analyzing your images...');
+      }
 
       _basePrompt = await aiService.generatePrompt(
         widget.originalImages.first,
@@ -84,23 +90,56 @@ class _ResultScreenState extends State<ResultScreen> {
       _generatedImages.add(image);
       _usedStyles.add(ImageGenerationService.getDiversityLabel(0));
 
-      // STEP 3: SAVE TO HISTORY
-      if (mounted) setState(() => _loadingMessage = 'Saving to history...');
+      // STEP 3: UPLOAD TO CLOUD & SAVE TO FIRESTORE
+      if (mounted) {
+        setState(() => _loadingMessage = 'Saving to cloud...');
+      }
 
       try {
-        final project = await StorageService().saveProject(
-          prompts: [_basePrompt],
-          inputImages: widget.originalImages,
-          generatedImageBytes: _generatedImages,
-        );
-        _projectId = project.id;
+        if (_uid != null) {
+          final cloudStorage = CloudStorageService();
+          final firestoreService = FirestoreService();
+
+          // Create a temporary project ID for file paths
+          final tempProjectId =
+              DateTime.now().millisecondsSinceEpoch.toString();
+
+          // Upload input images
+          final List<String> inputImageUrls = [];
+          for (int i = 0; i < widget.originalImages.length; i++) {
+            final url = await cloudStorage.uploadInputImage(
+              uid: _uid!,
+              projectId: tempProjectId,
+              imageFile: widget.originalImages[i],
+              index: i,
+            );
+            inputImageUrls.add(url);
+          }
+
+          // Upload generated image
+          final genUrl = await cloudStorage.uploadGeneratedImage(
+            uid: _uid!,
+            projectId: tempProjectId,
+            imageBytes: image,
+            index: 0,
+          );
+
+          // Save project to Firestore
+          final project = await firestoreService.saveProject(
+            uid: _uid!,
+            prompts: [_basePrompt],
+            inputImageUrls: inputImageUrls,
+            generatedImageUrls: [genUrl],
+          );
+          _projectId = project.id;
+        }
       } catch (e) {
-        debugPrint("Failed to save to history: $e");
+        debugPrint("Failed to save to cloud: $e");
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Note: Could not save to history (Storage might be full)',
+                'Note: Could not save to cloud. Check your connection.',
               ),
               duration: Duration(seconds: 2),
             ),
@@ -165,15 +204,22 @@ class _ResultScreenState extends State<ResultScreen> {
           _isGeneratingMore = false;
         });
 
-        // Add new image to existing project
-        if (_projectId != null) {
+        // Upload new image to cloud and add to existing project
+        if (_projectId != null && _uid != null) {
           try {
-            await StorageService().addGeneratedImage(
+            final genUrl = await CloudStorageService().uploadGeneratedImage(
+              uid: _uid!,
               projectId: _projectId!,
               imageBytes: image,
+              index: nextIndex,
+            );
+            await FirestoreService().addGeneratedImageUrl(
+              uid: _uid!,
+              projectId: _projectId!,
+              imageUrl: genUrl,
             );
           } catch (e) {
-            debugPrint("Failed to update history: $e");
+            debugPrint("Failed to upload to cloud: $e");
           }
         }
       }
@@ -205,12 +251,17 @@ class _ResultScreenState extends State<ResultScreen> {
             const SizedBox(height: 16),
             Text(
               _loadingMessage,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'This may take a few moments',
-              style: TextStyle(color: AppTheme.emeraldPrimary.withValues(alpha:0.6)),
+              style: TextStyle(
+                color: AppTheme.emeraldPrimary.withValues(alpha: 0.6),
+              ),
             ),
           ],
         ),
@@ -258,7 +309,11 @@ class _ResultScreenState extends State<ResultScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.image_not_supported, size: 48, color: Colors.grey),
+            const Icon(
+              Icons.image_not_supported,
+              size: 48,
+              color: Colors.grey,
+            ),
             const SizedBox(height: 16),
             const Text('No images generated.'),
             const SizedBox(height: 16),
@@ -294,7 +349,8 @@ class _ResultScreenState extends State<ResultScreen> {
             child: TextField(
               controller: _feedbackController,
               decoration: InputDecoration(
-                hintText: 'e.g. "Make the background brighter" or "Less shadow"',
+                hintText:
+                    'e.g. "Make the background brighter" or "Less shadow"',
                 labelText: 'Feedback for next generation (optional)',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -347,7 +403,10 @@ class _ResultScreenState extends State<ResultScreen> {
           child: SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: _isGeneratingMore ? null : () => Navigator.of(context).popUntil((route) => route.isFirst),
+              onPressed: _isGeneratingMore
+                  ? null
+                  : () => Navigator.of(context)
+                      .popUntil((route) => route.isFirst),
               icon: const Icon(Icons.home_outlined),
               label: const Text('Back to Home'),
               style: OutlinedButton.styleFrom(
@@ -368,7 +427,7 @@ class _ResultScreenState extends State<ResultScreen> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha:0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),
@@ -410,13 +469,14 @@ class _ResultScreenState extends State<ResultScreen> {
               children: [
                 Text(
                   'Variation ${index + 1}',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodyMedium
+                      ?.copyWith(fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   onPressed: () => _saveImage(index),
-                  icon: Icon(
+                  icon: const Icon(
                     Icons.download_rounded,
                     color: AppTheme.emeraldPrimary,
                     size: 24,
