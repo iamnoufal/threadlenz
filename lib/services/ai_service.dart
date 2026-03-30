@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'image_compression_service.dart';
 
 class AiService {
   static final AiService _instance = AiService._internal();
@@ -23,7 +24,8 @@ class AiService {
 
   Future<String> generatePrompt(XFile imageFile) async {
     try {
-      final imageBytes = await imageFile.readAsBytes();
+      final rawBytes = await imageFile.readAsBytes();
+      final imageBytes = await ImageCompressionService.compressForApi(rawBytes);
       final content = [
         Content.multi([
           TextPart(
