@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release:
-    if: github.event.pull_request.merged == true && (startsWith(github.event.pull_request.head.ref, 'feat_') || startsWith(github.event.pull_request.head.ref, 'ptch_') || startsWith(github.event.pull_request.head.ref, 'fix_'))
+    if: github.event.pull_request.merged == true && (startsWith(github.event.pull_request.head.ref, 'feat_') || startsWith(github.event.pull_request.head.ref, 'patch_') || startsWith(github.event.pull_request.head.ref, 'fix_'))
     runs-on: macos-latest
 
     steps:
@@ -38,7 +38,7 @@ jobs:
             MAJOR=$((MAJOR + 1))
             MINOR=0
             PATCH=0
-          elif [[ "$BRANCH" == ptch_* ]]; then
+          elif [[ "$BRANCH" == patch_* ]]; then
             # Patch update: bump minor version
             MINOR=$((MINOR + 1))
             PATCH=0

@@ -11,7 +11,7 @@ AI-powered e-commerce product photography app built with Flutter + Firebase.
 ## Key Conventions
 
 See `.claude/skills/threadlenz-conventions.md` for the full guide covering:
-- Branch naming (`feat_`, `ptch_`, `fix_`, `docs/`, `opt/`)
+- Branch naming (`feat_`, `patch_`, `fix_`, `docs/`, `opt/`)
 - Dart coding standards (debugPrint, withValues, final fields, single `_`)
 - PR descriptions (user-facing release notes only, no code internals)
 - CI/CD workflow (auto-versioning on merge based on branch prefix)
