@@ -58,6 +58,44 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('ThreadLenz'),
         actions: [
+          if (_uid != null)
+            FutureBuilder<int>(
+              future: FirestoreService().getTokenBalance(_uid!),
+              builder: (context, snapshot) {
+                final balance = snapshot.data ?? 0;
+                return Container(
+                  margin: const EdgeInsets.only(right: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: AppTheme.goldAccent.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: AppTheme.goldAccent.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.token,
+                        size: 16,
+                        color: AppTheme.goldAccent,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '$balance',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppTheme.emeraldPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
           if (_userPhotoUrl != null)
             GestureDetector(
               onTap: _signOut,

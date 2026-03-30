@@ -63,6 +63,21 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _startInitialWorkflow() async {
     try {
+      // TOKEN CHECK: Deduct 1 token before starting
+      if (_uid != null) {
+        final success = await FirestoreService().deductToken(_uid!);
+        if (!success) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage =
+                  'You have no tokens remaining. Please purchase more to continue.';
+            });
+          }
+          return;
+        }
+      }
+
       final aiService = AiService();
       aiService.initialize();
 
@@ -168,6 +183,22 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _generateMore() async {
     if (!_canGenerateMore || _isGeneratingMore) return;
+
+    // TOKEN CHECK: Deduct 1 token before generating more
+    if (_uid != null) {
+      final success = await FirestoreService().deductToken(_uid!);
+      if (!success) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No tokens remaining. Purchase more to continue.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
 
     // Capture and accumulate feedback before generation
     final currentFeedback = _feedbackController.text.trim();
