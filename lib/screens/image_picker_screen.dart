@@ -64,7 +64,7 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
       final uid = AuthService().currentUser?.uid;
       if (uid != null) {
         final balance = await FirestoreService().getTokenBalance(uid);
-        if (balance <= 0) {
+        if (balance == 0) {
           if (!mounted) return;
           showDialog(
             context: context,
@@ -84,6 +84,8 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
           );
           return;
         }
+        // balance == -1 means Firestore error — allow proceeding,
+        // ResultScreen's deductToken will handle it
       }
 
       if (!mounted) return;

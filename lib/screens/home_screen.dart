@@ -19,11 +19,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
+  Future<int>? _tokenBalanceFuture;
 
   String get _userName =>
       _authService.currentUser?.displayName ?? 'Creator';
   String? get _userPhotoUrl => _authService.currentUser?.photoURL;
   String? get _uid => _authService.currentUser?.uid;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshTokenBalance();
+  }
+
+  void _refreshTokenBalance() {
+    if (_uid != null) {
+      _tokenBalanceFuture = FirestoreService().getTokenBalance(_uid!);
+    }
+  }
 
   Future<void> _signOut() async {
     final confirm = await showDialog<bool>(
@@ -58,11 +71,14 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('ThreadLenz'),
         actions: [
-          if (_uid != null)
+          if (_tokenBalanceFuture != null)
             FutureBuilder<int>(
-              future: FirestoreService().getTokenBalance(_uid!),
+              future: _tokenBalanceFuture,
               builder: (context, snapshot) {
-                final balance = snapshot.data ?? 0;
+                if (!snapshot.hasData || snapshot.data! < 0) {
+                  return const SizedBox.shrink();
+                }
+                final balance = snapshot.data!;
                 return Container(
                   margin: const EdgeInsets.only(right: 8),
                   padding:
@@ -139,7 +155,10 @@ class _HomeScreenState extends State<HomeScreen> {
                         MaterialPageRoute(
                           builder: (context) => const HistoryScreen(),
                         ),
-                      ).then((_) => setState(() {}));
+                      ).then((_) {
+                        _refreshTokenBalance();
+                        setState(() {});
+                      });
                     },
                     child: const Text('See All'),
                   ),
@@ -186,7 +205,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       builder: (context) =>
                           ProjectDetailScreen(project: project),
                     ),
-                  ).then((_) => setState(() {}));
+                  ).then((_) {
+                        _refreshTokenBalance();
+                        setState(() {});
+                      });
                 },
                 borderRadius: BorderRadius.circular(12),
                 child: ListTile(
@@ -297,7 +319,10 @@ class _HomeScreenState extends State<HomeScreen> {
               MaterialPageRoute(
                 builder: (context) => const ImagePickerScreen(),
               ),
-            ).then((_) => setState(() {}));
+            ).then((_) {
+                        _refreshTokenBalance();
+                        setState(() {});
+                      });
           },
           borderRadius: BorderRadius.circular(20),
           child: Padding(
