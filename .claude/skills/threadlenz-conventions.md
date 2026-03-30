@@ -14,7 +14,7 @@ Branch names determine what happens in CI/CD. The prefix controls versioning —
 | Prefix | Version Bump | When to Use |
 |--------|-------------|-------------|
 | `feat_` | **Major** (X.0.0) | New features, infrastructure changes, major additions |
-| `ptch_` | **Minor** (0.X.0) | Enhancements to existing features, non-breaking improvements |
+| `patch_` | **Minor** (0.X.0) | Enhancements to existing features, non-breaking improvements |
 | `fix_` | **Patch** (0.0.X) | Bug fixes, small corrections, cost optimizations |
 | `docs/` | No build/release | Documentation-only changes (README, CHANGELOG, etc.) |
 | `opt/` or any other | No build/release | Non-release work (experiments, config changes) |
@@ -122,7 +122,7 @@ Two GitHub Actions workflows exist:
 - Must pass before merge
 
 ### Release (`release.yml`)
-- Triggers on: PR merged into master with `feat_`, `ptch_`, or `fix_` branch prefix
+- Triggers on: PR merged into master with `feat_`, `patch_`, or `fix_` branch prefix
 - Auto-computes next version from branch prefix and latest git tag
 - Builds release APK + iOS zip
 - Creates git tag and GitHub Release with:
