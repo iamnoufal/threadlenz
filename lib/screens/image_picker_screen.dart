@@ -3,6 +3,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../theme/app_theme.dart';
 import '../widgets/image_upload_card.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import 'result_screen.dart';
 
 class ImagePickerScreen extends StatefulWidget {
@@ -52,6 +54,57 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
   }
 
   bool get _canProceed => _images.any((img) => img != null);
+
+  Future<void> _onGenerateTapped() async {
+    try {
+      final selectedImages = _images.whereType<XFile>().toList();
+      if (selectedImages.isEmpty) return;
+
+      // Pre-flight token balance check
+      final uid = AuthService().currentUser?.uid;
+      if (uid != null) {
+        final balance = await FirestoreService().getTokenBalance(uid);
+        if (balance == 0) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (ctx) => AlertDialog(
+              title: const Text('No Tokens Remaining'),
+              content: const Text(
+                'You need tokens to generate images. '
+                'Please purchase more to continue.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('OK'),
+                ),
+              ],
+            ),
+          );
+          return;
+        }
+        // balance == -1 means Firestore error — allow proceeding,
+        // ResultScreen's deductToken will handle it
+      }
+
+      if (!mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ResultScreen(
+            generatedPrompts: const [],
+            originalImages: selectedImages,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -115,47 +168,7 @@ class _ImagePickerScreenState extends State<ImagePickerScreen> {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _canProceed
-                    ? () async {
-                        setState(() {
-                          // Show loading state if needed
-                        });
-
-                        try {
-                          // Filter out null images
-                          final selectedImages = _images
-                              .whereType<XFile>()
-                              .toList();
-
-                          if (selectedImages.isEmpty) {
-                            return; // Should likely be covered by _canProceed
-                          }
-
-                          // Initialize Logic
-                          // Navigate IMMEDIATELY to ResultScreen with the images.
-                          // ResultScreen will handle the analysis and generation.
-
-                          if (mounted) {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => ResultScreen(
-                                  // No prompts yet, just images
-                                  generatedPrompts: const [],
-                                  originalImages: selectedImages,
-                                ),
-                              ),
-                            );
-                          }
-                        } catch (e) {
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
-                        }
-                      }
-                    : null,
+                onPressed: _canProceed ? _onGenerateTapped : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: _canProceed
                       ? AppTheme.emeraldPrimary

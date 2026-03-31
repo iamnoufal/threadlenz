@@ -65,6 +65,35 @@ class FirestoreService {
     });
   }
 
+  /// Returns the current token balance for a user.
+  /// Returns -1 on Firestore errors so callers can distinguish from actual 0.
+  Future<int> getTokenBalance(String uid) async {
+    try {
+      final snapshot = await _usersCollection.doc(uid).get();
+      if (snapshot.exists && snapshot.data() != null) {
+        return snapshot.data()!['tokenBalance'] as int? ?? 10;
+      }
+      return 0;
+    } catch (e) {
+      debugPrint('Error fetching token balance: $e');
+      return -1;
+    }
+  }
+
+  /// Atomically deducts 1 token. Returns false if balance is 0.
+  /// Throws on Firestore errors so callers can distinguish from empty balance.
+  Future<bool> deductToken(String uid) async {
+    final docRef = _usersCollection.doc(uid);
+    return _db.runTransaction<bool>((transaction) async {
+      final snapshot = await transaction.get(docRef);
+      final data = snapshot.data();
+      final currentBalance = data?['tokenBalance'] as int? ?? 10;
+      if (currentBalance <= 0) return false;
+      transaction.update(docRef, {'tokenBalance': currentBalance - 1});
+      return true;
+    });
+  }
+
   // ──────────── Project Operations ────────────
 
   CollectionReference<Map<String, dynamic>> _projectsCollection(String uid) =>

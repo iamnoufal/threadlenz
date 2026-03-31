@@ -1,6 +1,7 @@
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_ai/firebase_ai.dart';
 import 'package:flutter/foundation.dart';
+import 'image_compression_service.dart';
 
 class ImageGenerationService {
   static const int maxGenerations = 6;
@@ -39,7 +40,8 @@ class ImageGenerationService {
       );
 
       final image = originalImages[variationIndex % originalImages.length];
-      final imageBytes = await image.readAsBytes();
+      final rawBytes = await image.readAsBytes();
+      final imageBytes = await ImageCompressionService.compressForApi(rawBytes);
 
       final diversityInstruction = _diversityInstructions[variationIndex];
 

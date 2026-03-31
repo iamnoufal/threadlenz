@@ -63,6 +63,21 @@ class _ResultScreenState extends State<ResultScreen> {
 
   Future<void> _startInitialWorkflow() async {
     try {
+      // TOKEN CHECK: Deduct 1 token before starting
+      if (_uid != null) {
+        final success = await FirestoreService().deductToken(_uid!);
+        if (!success) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage =
+                  'You have no tokens remaining. Please purchase more to continue.';
+            });
+          }
+          return;
+        }
+      }
+
       final aiService = AiService();
       aiService.initialize();
 
@@ -181,6 +196,24 @@ class _ResultScreenState extends State<ResultScreen> {
     setState(() => _isGeneratingMore = true);
 
     try {
+      // TOKEN CHECK: Deduct 1 token before generating more
+      if (_uid != null) {
+        final success = await FirestoreService().deductToken(_uid!);
+        if (!success) {
+          if (mounted) {
+            setState(() => _isGeneratingMore = false);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content:
+                    Text('No tokens remaining. Purchase more to continue.'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+      }
+
       final nextIndex = _generationCount;
       var prompt = _basePrompt;
 

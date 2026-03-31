@@ -1,6 +1,7 @@
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'image_compression_service.dart';
 
 class CloudStorageService {
   static final CloudStorageService _instance = CloudStorageService._internal();
@@ -18,7 +19,8 @@ class CloudStorageService {
     required int index,
   }) async {
     try {
-      final bytes = await imageFile.readAsBytes();
+      final rawBytes = await imageFile.readAsBytes();
+      final bytes = await ImageCompressionService.compressForStorage(rawBytes);
       final ref = _storage.ref().child(
         'users/$uid/projects/$projectId/inputs/input_$index.jpg',
       );
