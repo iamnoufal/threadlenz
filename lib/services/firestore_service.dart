@@ -71,7 +71,7 @@ class FirestoreService {
     try {
       final snapshot = await _usersCollection.doc(uid).get();
       if (snapshot.exists && snapshot.data() != null) {
-        return snapshot.data()!['tokenBalance'] as int? ?? 0;
+        return snapshot.data()!['tokenBalance'] as int? ?? 10;
       }
       return 0;
     } catch (e) {
